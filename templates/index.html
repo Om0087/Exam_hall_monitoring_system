@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="main-options">
+    <div class="option-card live-card" onclick="window.location.href='{{ url_for('live_camera') }}'">
+        <div class="card-icon">
+            <i class="fas fa-video"></i>
+        </div>
+        <h2>Live Camera Monitoring</h2>
+        <p>Monitor exam hall in real-time with cheating detection</p>
+        <div class="ripple-effect"></div>
+    </div>
+
+    <div class="option-card upload-card" onclick="window.location.href='{{ url_for('upload_video') }}'">
+        <div class="card-icon">
+            <i class="fas fa-upload"></i>
+        </div>
+        <h2>Upload Video</h2>
+        <p>Analyze recorded exam footage for cheating behaviors</p>
+        <div class="ripple-effect"></div>
+    </div>
+</div>
+
+<div class="features-section">
+    <h2>Detection Capabilities</h2>
+    <div class="features-grid">
+        <div class="feature">
+            <i class="fas fa-user-shield"></i>
+            <h3>Head Movement Tracking</h3>
+            <p>Detects excessive head turning during exams</p>
+        </div>
+        <div class="feature">
+            <i class="fas fa-eye"></i>
+            <h3>Eye Gaze Detection</h3>
+            <p>Identifies abnormal eye movements and gaze patterns</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

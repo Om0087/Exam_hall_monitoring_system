@@ -1,0 +1,9 @@
+flask
+opencv-python
+numpy
+dlib
+imutils
+flask-socketio
+eventlet
+python-engineio
+python-socketio

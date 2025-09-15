@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="upload-container">
+    <div class="upload-form">
+        <h2>Upload Exam Video</h2>
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+            <div class="file-upload-area" id="drop-zone">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Drag & drop your exam video here or click to browse</p>
+                <input type="file" name="file" id="file-input" accept="video/*">
+                <div class="upload-progress" id="upload-progress">
+                    <div class="progress-bar"></div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="upload-btn">
+                <i class="fas fa-upload"></i> Upload & Analyze
+            </button>
+        </form>
+    </div>
+
+    {% if filename %}
+    <div class="video-analysis-section">
+        <h3>Video Analysis: {{ filename }}</h3>
+        <div class="video-player">
+            <div class="video-container">
+                <img id="video-feed" src="" alt="Video analysis feed">
+            </div>
+            <div class="video-controls">
+                <button id="play-video" class="btn btn-primary">
+                    <i class="fas fa-play"></i> Play
+                </button>
+                <button id="pause-video" class="btn btn-secondary" disabled>
+                    <i class="fas fa-pause"></i> Pause
+                </button>
+                <div class="video-progress">
+                    <input type="range" id="video-progress" min="0" max="100" value="0">
+                </div>
+            </div>
+        </div>
+        <div class="detection-results">
+            <h3>Detection Results</h3>
+            <div class="results-container">
+                <div class="result-item">
+                    <span class="result-label">Head Movement:</span>
+                    <span id="head-movement" class="result-value">Not detected</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Eye Gaze:</span>
+                    <span id="eye-gaze" class="result-value">Normal</span>
+                </div>
+                <!-- In both live_camera.html and upload_video.html, add these result items -->
+                <div class="result-item">
+                    <span class="result-label">Multiple Faces:</span>
+                    <span id="multiple-faces" class="result-value">Not detected</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Person Proximity:</span>
+                    <span id="person-proximity" class="result-value">Normal</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Status:</span>
+                    <span id="status-message" class="result-value">Ready to analyze</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Prohibited Objects:</span>
+                    <span id="prohibited-objects" class="result-value">Not detected</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Lip Movement:</span>
+                    <span id="lip-movement" class="result-value">Normal</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Detected Objects:</span>
+                    <span id="detected-objects" class="result-value">None</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+<!-- Update the script section -->
+{% block scripts %}
+{% if filename %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const playBtn = document.getElementById('play-video');
+        const pauseBtn = document.getElementById('pause-video');
+        const progressBar = document.getElementById('video-progress');
+        const videoFeed = document.getElementById('video-feed');
+        const headMovement = document.getElementById('head-movement');
+        const eyeGaze = document.getElementById('eye-gaze');
+        const statusMessage = document.getElementById('status-message');
+        // Add these to the top of your JavaScript where you select other elements
+        const multipleFaces = document.getElementById('multiple-faces');
+        const personProximity = document.getElementById('person-proximity');
+
+        // Connect to the upload namespace
+        const socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + '/upload');
+        let isPlaying = false;
+
+        playBtn.addEventListener('click', function() {
+            if (!isPlaying) {
+                console.log("Starting video analysis for:", '{{ filename }}');
+                socket.emit('start_uploaded_feed', {
+                    filename: '{{ filename }}'
+                });
+                isPlaying = true;
+                playBtn.disabled = true;
+                pauseBtn.disabled = false;
+                statusMessage.textContent = "Analyzing...";
+                statusMessage.className = "result-value active";
+            }
+        });
+
+        pauseBtn.addEventListener('click', function() {
+            if (isPlaying) {
+                socket.emit('pause_uploaded_feed');
+                isPlaying = false;
+                playBtn.disabled = false;
+                pauseBtn.disabled = true;
+                statusMessage.textContent = "Paused";
+                statusMessage.className = "result-value";
+            }
+        });
+
+        socket.on('uploaded_feed', function(data) {
+
+            // Update video feed
+            if (data.frame) {
+                videoFeed.src = 'data:image/jpeg;base64,' + data.frame;
+            }
+
+            // Update progress bar
+            if (data.progress) {
+                progressBar.value = data.progress;
+            }
+
+            // Update detection results
+            if (data.behaviors) {
+                if (data.behaviors.head_turning) {
+                    headMovement.textContent = "Detected!";
+                    headMovement.className = "result-value alert";
+                } else {
+                    headMovement.textContent = "Not detected";
+                    headMovement.className = "result-value";
+                }
+
+                if (data.behaviors.abnormal_eye_movement) {
+                    eyeGaze.textContent = "Abnormal";
+                    eyeGaze.className = "result-value alert";
+                } else {
+                    eyeGaze.textContent = "Normal";
+                    eyeGaze.className = "result-value";
+                }
+                // In the socket.on('live_feed') and socket.on('uploaded_feed') handlers, add:
+                if (data.behaviors.multiple_faces) {
+                    multipleFaces.textContent = "Detected!";
+                    multipleFaces.className = "result-value alert";
+                    showNotification("Multiple faces detected! Potential impersonation.", "warning");
+                } else {
+                    multipleFaces.textContent = "Not detected";
+                    multipleFaces.className = "result-value";
+                }
+
+                if (data.behaviors.person_proximity) {
+                    personProximity.textContent = "Suspicious";
+                    personProximity.className = "result-value alert";
+                    showNotification("Suspicious proximity detected between examinees!", "warning");
+                } else {
+                    personProximity.textContent = "Normal";
+                    personProximity.className = "result-value";
+                }
+
+                statusMessage.textContent = data.behaviors.message || "Analyzing...";
+            }
+        });
+
+        socket.on('video_ended', function() {
+            isPlaying = false;
+            playBtn.disabled = false;
+            pauseBtn.disabled = true;
+            progressBar.value = 100;
+            statusMessage.textContent = "Analysis complete";
+            statusMessage.className = "result-value success";
+            showNotification("Video analysis completed!", "success");
+        });
+
+        socket.on('video_error', function(data) {
+            console.error("Video error:", data.message);
+            isPlaying = false;
+            playBtn.disabled = false;
+            pauseBtn.disabled = true;
+            statusMessage.textContent = "Error: " + data.message;
+            statusMessage.className = "result-value alert";
+            showNotification("Error: " + data.message, "danger");
+        });
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            const content = notification.querySelector('.notification-content');
+
+            if (notification && content) {
+                content.textContent = message;
+                notification.className = `floating-notification ${type} show`;
+
+                setTimeout(() => {
+                    notification.className = "floating-notification";
+                }, 3000);
+            }
+        }
+    });
+</script>
+{% endif %}
+
+<script>
+    // File upload handling with drag and drop
+    document.addEventListener('DOMContentLoaded', function() {
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadForm = document.getElementById('upload-form');
+        const uploadProgress = document.getElementById('upload-progress');
+        const progressBar = uploadProgress.querySelector('.progress-bar');
+
+        // Highlight drop zone when dragging over
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('highlight');
+        }
+
+        function unhighlight(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('highlight');
+        }
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length) {
+                fileInput.files = files;
+                updateFileNameDisplay(files[0].name);
+            }
+        });
+
+        // Handle file selection via click
+        dropZone.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        // Show file name when selected
+        fileInput.addEventListener('change', function() {
+            if (this.files.length) {
+                updateFileNameDisplay(this.files[0].name);
+            }
+        });
+
+        function updateFileNameDisplay(name) {
+            dropZone.querySelector('p').textContent = name;
+        }
+
+        // Form submission with progress
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const xhr = new XMLHttpRequest();
+
+            xhr.open('POST', this.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                    uploadProgress.style.display = 'block';
+
+                    if (percentComplete === 100) {
+                        dropZone.querySelector('p').textContent = 'Upload complete! Processing...';
+                    }
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        window.location.href = response.redirect;
+                    }
+                } else {
+                    showNotification("Upload failed. Please try again.", "danger");
+                    uploadProgress.style.display = 'none';
+                }
+            };
+
+            xhr.onerror = function() {
+                showNotification("Error during upload. Please try again.", "danger");
+                uploadProgress.style.display = 'none';
+            };
+
+            xhr.send(formData);
+        });
+    });
+</script>
+{% endblock %}
