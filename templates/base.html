@@ -10,20 +10,64 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
-    <div class="container">
-        <header class="animated-header">
-            <h1>Exam Hall Monitoring System</h1>
-            <p>Detecting cheating behaviors using computer vision</p>
-        </header>
+    <!-- Navigation Bar -->
+    <nav class="navbar glass-card">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-shield-alt"></i>
+                <span>ExamMonitor</span>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link">
+                        <i class="fas fa-home"></i>
+                        <span>Home</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('live_camera') }}" class="nav-link">
+                        <i class="fas fa-video"></i>
+                        <span>Live Camera</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('upload_video') }}" class="nav-link">
+                        <i class="fas fa-upload"></i>
+                        <span>Upload Video</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('about_us') }}" class="nav-link">
+                        <i class="fas fa-info-circle"></i>
+                        <span>About Us</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="nav-toggle">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
 
-        <div class="floating-notification" id="notification">
-            <div class="notification-content"></div>
+    <div class="container">
+        <!-- Added main-content wrapper with proper spacing -->
+        <div class="main-content">
+            <header class="animated-header">
+                <h1>Exam Hall Monitoring System</h1>
+                <p>Detecting cheating behaviors using computer vision</p>
+            </header>
+
+            <div class="floating-notification" id="notification">
+                <div class="notification-content"></div>
+            </div>
+
+            {% block content %}{% endblock %}
         </div>
 
-        {% block content %}{% endblock %}
-
         <footer>
-            <p>© 2023 Exam Monitoring System | Powered by AI & Computer Vision</p>
+            <p>@2025 Exam Hall Monitoring System | Powered by AI & Computer Vision</p>
         </footer>
     </div>
 

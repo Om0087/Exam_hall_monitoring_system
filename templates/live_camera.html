@@ -11,6 +11,9 @@
             <button id="stop-camera" class="btn btn-danger" disabled>
                 <i class="fas fa-stop"></i> Stop Camera
             </button>
+            <a href="{{ url_for('download_logs') }}" class="btn btn-success download-btn" id="download-btn" style="display: none;">
+                <i class="fas fa-download"></i> Download Logs (CSV)
+            </a>
             <select id="camera-select" class="form-control">
                 <option value="0">Default Camera</option>
                 <option value="1">Secondary Camera</option>
@@ -33,15 +36,14 @@
                     <span class="result-label">Eye Gaze:</span>
                     <span id="eye-gaze" class="result-value">Normal</span>
                 </div>
-                <!-- In both live_camera.html and upload_video.html, add these result items -->
                 <div class="result-item">
                     <span class="result-label">Multiple Faces:</span>
                     <span id="multiple-faces" class="result-value">Not detected</span>
                 </div>
-                <div class="result-item">
-                    <span class="result-label">Prohibited Objects:</span>
-                    <span id="prohibited-objects" class="result-value">Not detected</span>
-                </div>
+<!--                <div class="result-item">-->
+<!--                    <span class="result-label">Prohibited Objects:</span>-->
+<!--                    <span id="prohibited-objects" class="result-value">Not detected</span>-->
+<!--                </div>-->
                 <div class="result-item">
                     <span class="result-label">Lip Movement:</span>
                     <span id="lip-movement" class="result-value">Normal</span>
@@ -59,8 +61,21 @@
                     <span id="status-message" class="result-value">Camera off</span>
                 </div>
             </div>
-        </div>
     </div>
+</div>
+            <!-- Real-time Logs Section -->
+    <div class="real-time-logs">
+                <h3>Real-time Detection Logs</h3>
+                <div class="logs-container" id="logs-container">
+                    <div class="no-logs" id="no-logs">No detections yet</div>
+                </div>
+
+        </div>
+
+    <!-- Add this before closing the content block -->
+<div id="notification" class="floating-notification">
+    <div class="notification-content"></div>
+</div>
 </div>
 {% endblock %}
 
@@ -69,17 +84,47 @@
     document.addEventListener('DOMContentLoaded', function() {
         const startBtn = document.getElementById('start-camera');
         const stopBtn = document.getElementById('stop-camera');
+        const downloadBtn = document.getElementById('download-btn');
         const cameraSelect = document.getElementById('camera-select');
         const liveFeed = document.getElementById('live-feed');
         const headMovement = document.getElementById('head-movement');
         const eyeGaze = document.getElementById('eye-gaze');
         const statusMessage = document.getElementById('status-message');
-        // Add these to the top of your JavaScript where you select other elements
         const multipleFaces = document.getElementById('multiple-faces');
         const personProximity = document.getElementById('person-proximity');
+        const prohibitedObjects = document.getElementById('prohibited-objects');
+        const lipMovement = document.getElementById('lip-movement');
+        const detectedObjects = document.getElementById('detected-objects');
+        const logsContainer = document.getElementById('logs-container');
+        let noLogs = document.getElementById('no-logs');
 
-        let socket = io.connect('http://' + document.domain + ':' + location.port + '/live');
+<!--        let socket = io.connect('http://' + document.domain + ':' + location.port + '/live');-->
+        let socket = io('/live')
         let isStreaming = false;
+        let detectionLogs = [];
+
+        function addLogEntry(logEntry) {
+            detectionLogs.unshift(logEntry);
+
+            if (noLogs.style.display !== 'none') {
+                noLogs.style.display = 'none';
+            }
+
+            const logElement = document.createElement('div');
+            logElement.className = 'log-entry';
+            logElement.innerHTML = `
+                <div class="log-time">${logEntry.timestamp.split(' ')[1]}</div>
+                <div class="log-student">${logEntry.student_id}</div>
+                <div class="log-type">${logEntry.detection_type}</div>
+                <div class="log-message">${logEntry.message}</div>
+            `;
+
+            logsContainer.insertBefore(logElement, logsContainer.firstChild);
+
+            if (logsContainer.children.length > 10) {
+                logsContainer.removeChild(logsContainer.lastChild);
+            }
+        }
 
         startBtn.addEventListener('click', function() {
             if (!isStreaming) {
@@ -88,8 +133,13 @@
                 isStreaming = true;
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
+                downloadBtn.style.display = 'none';
                 statusMessage.textContent = "Monitoring...";
                 statusMessage.className = "result-value active";
+
+                detectionLogs = [];
+                logsContainer.innerHTML = '<div class="no-logs" id="no-logs">No detections yet</div>';
+<!--                noLogs = document.getElementById('no-logs');-->
             }
         });
 
@@ -100,10 +150,15 @@
                 isStreaming = false;
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
-                statusMessage.textContent = "Camera off";
+                downloadBtn.style.display = 'inline-block';
+                statusMessage.textContent = "Camera off - Ready to download logs";
                 statusMessage.className = "result-value";
                 headMovement.textContent = "Not detected";
                 eyeGaze.textContent = "Normal";
+
+                if (detectionLogs.length > 0) {
+                    showNotification("Monitoring stopped. Click 'Download Logs' to save detection report.", "success");
+                }
             }
         });
 
@@ -113,7 +168,6 @@
             if (data.behaviors.head_turning) {
                 headMovement.textContent = "Detected!";
                 headMovement.className = "result-value alert";
-                showNotification("Head turning detected!", "warning");
             } else {
                 headMovement.textContent = "Not detected";
                 headMovement.className = "result-value";
@@ -122,17 +176,14 @@
             if (data.behaviors.abnormal_eye_movement) {
                 eyeGaze.textContent = "Abnormal";
                 eyeGaze.className = "result-value alert";
-                showNotification("Abnormal eye movement detected!", "warning");
             } else {
                 eyeGaze.textContent = "Normal";
                 eyeGaze.className = "result-value";
             }
 
-            // In the socket.on('live_feed') and socket.on('uploaded_feed') handlers, add:
             if (data.behaviors.multiple_faces) {
                 multipleFaces.textContent = "Detected!";
                 multipleFaces.className = "result-value alert";
-                showNotification("Multiple faces detected! Potential impersonation.", "warning");
             } else {
                 multipleFaces.textContent = "Not detected";
                 multipleFaces.className = "result-value";
@@ -141,40 +192,42 @@
             if (data.behaviors.person_proximity) {
                 personProximity.textContent = "Suspicious";
                 personProximity.className = "result-value alert";
-                showNotification("Suspicious proximity detected between examinees!", "warning");
             } else {
                 personProximity.textContent = "Normal";
                 personProximity.className = "result-value";
             }
-            // Update prohibited objects detection
-if (data.behaviors.prohibited_objects) {
-    document.getElementById('prohibited-objects').textContent = "Detected!";
-    document.getElementById('prohibited-objects').className = "result-value alert";
 
-    // List detected objects
-    const objectsList = data.behaviors.detected_objects.map(obj => {
-        return `Phone (${(obj.confidence * 100).toFixed(1)}%)`;
-    }).join(', ');
+            if (data.behaviors.prohibited_objects) {
+                prohibitedObjects.textContent = "Detected!";
+                prohibitedObjects.className = "result-value alert";
+                const objectsList = data.behaviors.detected_objects.map(obj => {
+                    return `Phone (${(obj.confidence * 100).toFixed(1)}%)`;
+                }).join(', ');
+                detectedObjects.textContent = objectsList || "None";
+                detectedObjects.className = "result-value alert";
+            } else {
+                prohibitedObjects.textContent = "Not detected";
+                prohibitedObjects.className = "result-value";
+                detectedObjects.textContent = "None";
+                detectedObjects.className = "result-value";
+            }
 
-    document.getElementById('detected-objects').textContent = objectsList || "None";
-    document.getElementById('detected-objects').className = "result-value alert";
-} else {
-    document.getElementById('prohibited-objects').textContent = "Not detected";
-    document.getElementById('prohibited-objects').className = "result-value";
-    document.getElementById('detected-objects').textContent = "None";
-    document.getElementById('detected-objects').className = "result-value";
-}
-
-// Update lip movement detection
-if (data.behaviors.lip_movement) {
-    document.getElementById('lip-movement').textContent = "Talking detected!";
-    document.getElementById('lip-movement').className = "result-value alert";
-} else {
-    document.getElementById('lip-movement').textContent = "Normal";
-    document.getElementById('lip-movement').className = "result-value";
-}
+            if (data.behaviors.lip_movement) {
+                lipMovement.textContent = "Talking detected!";
+                lipMovement.className = "result-value alert";
+            } else {
+                lipMovement.textContent = "Normal";
+                lipMovement.className = "result-value";
+            }
 
             statusMessage.textContent = data.behaviors.message || "Monitoring...";
+
+            if (data.behaviors.log_entries && data.behaviors.log_entries.length > 0) {
+                data.behaviors.log_entries.forEach(entry => {
+                    addLogEntry(entry);
+                    showNotification(`🚨 ${entry.student_id}: ${entry.detection_type}`, "warning");
+                });
+            }
         });
 
         function showNotification(message, type) {
